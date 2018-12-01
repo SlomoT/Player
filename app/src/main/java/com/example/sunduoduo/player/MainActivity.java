@@ -2,6 +2,7 @@ package com.example.sunduoduo.player;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.media.MediaPlayer;
 import android.os.Environment;
 import android.os.Handler;
@@ -34,6 +35,7 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
     private ImageButton btnPlay;
     private TextView tv_currTime,tv_totalTime,tv_showName;
     private List<String> list;
+    private List<String> SongName;
     private ProgressDialog pd; // 进度条对话框
     private MusicListAdapter ma;// 适配器
     private MediaPlayer mp;
@@ -50,16 +52,22 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
     //定义线程池（同时只能有一个线程运行）
     ExecutorService es = Executors.newSingleThreadExecutor();
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.mediaplayer_layout);
         list = new ArrayList<String>();
+        SongName = new ArrayList<String>();
         mp = new MediaPlayer();
         mp.setOnCompletionListener(this);
         mp.setOnErrorListener(this);
         initView();
+
+
     }
+
+    @Override
     protected void onDestroy() {
         if (mp != null) {
             mp.stop();
@@ -69,6 +77,7 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
         }
         super.onDestroy();
     }
+
     /**
      * 初始化UI组件
      */
@@ -82,15 +91,16 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
         tv_totalTime = (TextView) findViewById(R.id.textView1_total_time);
         tv_showName = (TextView) findViewById(R.id.tv_showName);
     }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         //从xml文件中装载菜单
         getMenuInflater().inflate(R.menu.media_menu, menu);
-        return super.onCreateOptionsMenu(menu);
+        return true;
     }
 
     private Handler hander = new Handler() {
-        public void handleMessage(android.os.Message msg) {
+        public void handleMessage(Message msg) {
             switch (msg.what) {
                 case SEARCH_MUSIC_SUCCESS:
                     //搜索音乐文件结束时
@@ -119,8 +129,8 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
                         Environment.MEDIA_MOUNTED)) {
                     pd = ProgressDialog.show(this, "", "正在搜索音乐文件...", true);
                     new Thread(new Runnable() {
-                        String[] ext = { ".mp3" };
-                        File file = Environment.getExternalStorageDirectory();
+                        String[] ext = { ".mp3",".flac" };
+                        File file = new File(Environment.getExternalStorageDirectory() + "/Song");
 
                         public void run() {
                             search(file, ext);
@@ -130,8 +140,10 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
 
                 } else {
                     Toast.makeText(this, "请插入外部存储设备..", Toast.LENGTH_LONG).show();
+                    break;
                 }
-
+                MusicListAdapter adapter = new MusicListAdapter();
+                listView.setAdapter(adapter);
                 break;
             //清除播放列表菜单
             case R.id.item2_clear:
@@ -143,29 +155,36 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
                 flag = false;
                 this.finish();
                 break;
+            case R.id.item4_web:
+                Intent intent=new Intent(MainActivity.this,WebActivity.class);
+                startActivity(intent);
         }
+
         return super.onOptionsItemSelected(item);
     }
 
     // 搜索音乐文件
     private void search(File file, String[] ext) {
-        if (file != null) {
+        if (file.exists()) {
             if (file.isDirectory()) {
-                File[] listFile = file.listFiles();
-                if (listFile != null) {
-                    for (int i = 0; i < listFile.length; i++) {
-                        search(listFile[i], ext);
+
+                File[] listFile =  file.listFiles();
+                for (File f : listFile) {
+                    for (int i = 0; i < ext.length; i++) {
+                        if (ext[i].equals(f.getName().substring(f.getName().lastIndexOf(".")))) {
+                            SongName.add(f.getName());
+                            list.add(f.getPath());
+                        }
                     }
                 }
-            } else {
-                String filename = file.getAbsolutePath();
-                for (int i = 0; i < ext.length; i++) {
-                    if (filename.endsWith(ext[i])) {
-                        list.add(filename);
-                        break;
-                    }
-                }
+
             }
+            else {
+                Toast.makeText(MainActivity.this,"文件Song不是目录文件！",Toast.LENGTH_SHORT);
+            }
+        }
+        else {
+            Toast.makeText(MainActivity.this,"文件夹Song不存在！",Toast.LENGTH_SHORT);
         }
     }
 
@@ -184,13 +203,13 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
         }
 
         public View getView(int position, View convertView, ViewGroup parent) {
-            /*if (convertView == null) {
+            if (convertView == null) {
                 convertView = getLayoutInflater().inflate(R.layout.list_item,
                         null);
             }
             TextView tv_music_name = (TextView) convertView
                     .findViewById(R.id.textView1_music_name);
-            tv_music_name.setText(list.get(position));*/
+            tv_music_name.setText(list.get(position));
             return convertView;
         }
 
@@ -203,12 +222,12 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
                 break;
             case PAUSE:
                 mp.pause();
-                btnPlay.setImageResource(R.drawable.ic_stat_pause);
+                btnPlay.setImageResource(R.drawable.ic_stat_name);
                 currState = START;
                 break;
             case START:
                 mp.start();
-                btnPlay.setImageResource(R.drawable.ic_stat_name);
+                btnPlay.setImageResource(R.drawable.ic_stat_pause);
                 currState = PAUSE;
         }
     }
