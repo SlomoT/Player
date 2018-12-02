@@ -1,12 +1,18 @@
 package com.example.sunduoduo.player;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.Menu;
@@ -28,7 +34,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class MainActivity extends Activity implements MediaPlayer.OnCompletionListener,MediaPlayer.OnErrorListener,SeekBar.OnSeekBarChangeListener,AdapterView.OnItemClickListener,Runnable {
+public class MainActivity extends AppCompatActivity implements MediaPlayer.OnCompletionListener,MediaPlayer.OnErrorListener,SeekBar.OnSeekBarChangeListener,AdapterView.OnItemClickListener,Runnable {
     protected static final int SEARCH_MUSIC_SUCCESS = 0;// 搜索成功标记
     private SeekBar seekBar;
     private ListView listView;
@@ -36,11 +42,21 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
     private TextView tv_currTime,tv_totalTime,tv_showName;
     private List<String> list;
     private List<String> SongName;
-    private ProgressDialog pd; // 进度条对话框
+    public  ProgressDialog pd; // 进度条对话框
     private MusicListAdapter ma;// 适配器
     private MediaPlayer mp;
     private int currIndex = 0;// 表示当前播放的音乐索引
     private boolean flag = true;//控制进度条线程标记
+
+    private static final int MY_PERMISSIONS_REQUEST_CALL_PHONE = 1;
+    private static final int MY_PERMISSIONS_REQUEST_CALL_CAMERA = 2;
+
+
+    String[] permissions = new String[]{
+            Manifest.permission.CAMERA,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.CALL_PHONE
+    };
 
     // 定义当前播放器的状态״̬
     private static final int IDLE = 0;
@@ -51,6 +67,24 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
     private int currState = IDLE; // 当前播放器的状态
     //定义线程池（同时只能有一个线程运行）
     ExecutorService es = Executors.newSingleThreadExecutor();
+
+    private static final int REQUEST_EXTERNAL_STORAGE = 1;
+    private static String[] PERMISSIONS_STORAGE = {
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
+
+    public void verifyPermission(Context context){
+        int permission = ActivityCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        if (permission != PackageManager.PERMISSION_GRANTED) {
+            // We don't have permission so prompt the user
+            ActivityCompat.requestPermissions(
+                    MainActivity.this,
+                    PERMISSIONS_STORAGE,
+                    REQUEST_EXTERNAL_STORAGE);
+        }
+    }
+
 
 
     @Override
@@ -64,11 +98,15 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
         mp.setOnErrorListener(this);
         initView();
 
-
     }
 
     @Override
     protected void onDestroy() {
+        if (pd != null) {
+            pd.dismiss();
+        }
+        super.onDestroy();
+
         if (mp != null) {
             mp.stop();
             flag= false;
@@ -99,25 +137,6 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
         return true;
     }
 
-    private Handler hander = new Handler() {
-        public void handleMessage(Message msg) {
-            switch (msg.what) {
-                case SEARCH_MUSIC_SUCCESS:
-                    //搜索音乐文件结束时
-                    ma = new MusicListAdapter();
-                    listView.setAdapter(ma);
-                    pd.dismiss();
-                    break;
-                case CURR_TIME_VALUE:
-                    //设置当前时间
-                    tv_currTime.setText(msg.obj.toString());
-                    break;
-                default:
-                    break;
-            }
-        };
-    };
-
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
@@ -130,10 +149,16 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
                     pd = ProgressDialog.show(this, "", "正在搜索音乐文件...", true);
                     new Thread(new Runnable() {
                         String[] ext = { ".mp3",".flac" };
+
+                        String a = Environment.getExternalStorageState();
+
+
+
                         File file = new File(Environment.getExternalStorageDirectory() + "/Song");
+                        File file1 = new File("/mnt/sdcard/song");
 
                         public void run() {
-                            search(file, ext);
+                            search(file1, ext);
                             hander.sendEmptyMessage(SEARCH_MUSIC_SUCCESS);
                         }
                     }).start();
@@ -163,12 +188,57 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
         return super.onOptionsItemSelected(item);
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+
+        if (requestCode == MY_PERMISSIONS_REQUEST_CALL_PHONE) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            } else {
+            }
+        }else if (requestCode == MY_PERMISSIONS_REQUEST_CALL_CAMERA){
+            for (int i = 0; i < grantResults.length; i++) {
+                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                    //判断是否勾选禁止后不再询问
+                    boolean showRequestPermission = ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permissions[i]);
+                    if (showRequestPermission) {
+                    }
+                }
+            }
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+
+    private Handler hander = new Handler() {
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case SEARCH_MUSIC_SUCCESS:
+                    //搜索音乐文件结束时
+                    ma = new MusicListAdapter();
+                    listView.setAdapter(ma);
+                    pd.dismiss();
+                    break;
+                case CURR_TIME_VALUE:
+                    //设置当前时间
+                    tv_currTime.setText(msg.obj.toString());
+                    break;
+                default:
+                    break;
+            }
+        };
+    };
+
+
+
+
+
     // 搜索音乐文件
     private void search(File file, String[] ext) {
         if (file.exists()) {
             if (file.isDirectory()) {
 
                 File[] listFile =  file.listFiles();
+
                 for (File f : listFile) {
                     for (int i = 0; i < ext.length; i++) {
                         if (ext[i].equals(f.getName().substring(f.getName().lastIndexOf(".")))) {
@@ -177,7 +247,6 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
                         }
                     }
                 }
-
             }
             else {
                 Toast.makeText(MainActivity.this,"文件Song不是目录文件！",Toast.LENGTH_SHORT);
@@ -222,12 +291,12 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
                 break;
             case PAUSE:
                 mp.pause();
-                btnPlay.setImageResource(R.drawable.ic_stat_name);
+                btnPlay.setImageResource(R.drawable.ic_stat_pause);
                 currState = START;
                 break;
             case START:
                 mp.start();
-                btnPlay.setImageResource(R.drawable.ic_stat_pause);
+                btnPlay.setImageResource(R.drawable.ic_stat_name);
                 currState = PAUSE;
         }
     }
@@ -264,7 +333,7 @@ public class MainActivity extends Activity implements MediaPlayer.OnCompletionLi
                 initSeekBar();
                 es.execute(this);
                 tv_showName.setText(list.get(currIndex));
-                btnPlay.setImageResource(R.drawable.ic_stat_pause);
+                btnPlay.setImageResource(R.drawable.ic_stat_name);
                 currState = PAUSE;
             } catch (IOException e) {
                 e.printStackTrace();
